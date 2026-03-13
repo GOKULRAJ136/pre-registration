@@ -468,21 +468,29 @@ public class NotificationService {
 			}
 		}
 		boolean isNameMatchFound = false;
+		boolean missingNameField = false;
 		if (!notificationDto.getIsBatch()) {
 			if (nameFormat != null) {
 				String[] nameKeys = nameFormat.split(",");
 				for (int i = 0; i < nameKeys.length; i++) {
 					JsonNode arrayNode = responseNode.get(nameKeys[i]);
+					if (arrayNode == null || !arrayNode.isArray()) {
+						missingNameField = true;
+						continue;
+					}
 					for (JsonNode jsonNode : arrayNode) {
 						if (notificationDto.getName().trim().equals(jsonNode.get("value").asText().trim())) {
 							isNameMatchFound = true;
 							break;
 						}
 					}
+					if (isNameMatchFound) {
+						break;
+					}
 				}
 
 			}
-			if (!isNameMatchFound) {
+			if (missingNameField || !isNameMatchFound) {
 				throw new MandatoryFieldException(NotificationErrorCodes.PRG_PAM_ACK_008.getCode(),
 						NotificationErrorMessages.FULL_NAME_VALIDATION_EXCEPTION.getMessage(), response);
 			}
