@@ -7,10 +7,13 @@ import static io.mosip.preregistration.application.constant.PreRegApplicationCon
 import java.io.IOException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONException;
 import org.json.simple.parser.ParseException;
@@ -468,21 +471,42 @@ public class NotificationService {
 			}
 		}
 		boolean isNameMatchFound = false;
+		boolean missingNameField = false;
 		if (!notificationDto.getIsBatch()) {
 			if (nameFormat != null) {
 				String[] nameKeys = nameFormat.split(",");
+				Set<String> requestedLangs = new HashSet<>();
+				if (notificationDto.getLanguageCode() != null) {
+					for (String lang : notificationDto.getLanguageCode().split(",")) {
+						if (!lang.trim().isEmpty()) {
+							requestedLangs.add(lang.trim());
+						}
+					}
+				}
+				String requestName = normalizeValue(notificationDto.getName());
 				for (int i = 0; i < nameKeys.length; i++) {
 					JsonNode arrayNode = responseNode.get(nameKeys[i]);
+					if (arrayNode == null || !arrayNode.isArray()) {
+						missingNameField = true;
+						continue;
+					}
 					for (JsonNode jsonNode : arrayNode) {
-						if (notificationDto.getName().trim().equals(jsonNode.get("value").asText().trim())) {
+						String lang = jsonNode.has("language") ? jsonNode.get("language").asText().trim() : null;
+						if (!requestedLangs.isEmpty() && (lang == null || !requestedLangs.contains(lang))) {
+							continue;
+						}
+						String value = jsonNode.has("value") ? normalizeValue(jsonNode.get("value").asText()) : null;
+						if (value != null && requestName != null && requestName.equals(value)) {
 							isNameMatchFound = true;
 							break;
 						}
 					}
+					if (isNameMatchFound) {
+						break;
+					}
 				}
-
 			}
-			if (!isNameMatchFound) {
+			if (missingNameField || !isNameMatchFound) {
 				throw new MandatoryFieldException(NotificationErrorCodes.PRG_PAM_ACK_008.getCode(),
 						NotificationErrorMessages.FULL_NAME_VALIDATION_EXCEPTION.getMessage(), response);
 			}
@@ -508,5 +532,16 @@ public class NotificationService {
 		}
 		bookingRegistrationDTO = respEntity.getResponse();
 		return bookingRegistrationDTO;
+	}
+
+	private String normalizeValue(String value) {
+		if (value == null) {
+			return null;
+		}
+		String trimmed = value.trim();
+		if (trimmed.isEmpty()) {
+			return trimmed;
+		}
+		return Normalizer.normalize(trimmed, Normalizer.Form.NFC);
 	}
 }
