@@ -499,6 +499,7 @@ public class NotificationService {
 						missingNameField = true;
 						continue;
 					}
+					// First pass: match against requested languages if provided.
 					for (JsonNode jsonNode : arrayNode) {
 						String lang = jsonNode.has("language") ? jsonNode.get("language").asText().trim() : "";
 						if (!requestedLangs.isEmpty() && !requestedLangs.contains(lang)) {
@@ -512,6 +513,21 @@ public class NotificationService {
 						if (expected != null && actual != null && expected.equals(actual)) {
 							isNameMatchFound = true;
 							break;
+						}
+					}
+					// Second pass: if no match yet, try any language entry.
+					if (!isNameMatchFound) {
+						for (JsonNode jsonNode : arrayNode) {
+							String lang = jsonNode.has("language") ? jsonNode.get("language").asText().trim() : "";
+							String expected = requestedNames.get(lang);
+							if (expected == null && requestedNames.size() == 1 && requestedNames.containsKey("")) {
+								expected = requestedNames.get("");
+							}
+							String actual = jsonNode.has("value") ? normalizeValue(jsonNode.get("value").asText()) : null;
+							if (expected != null && actual != null && expected.equals(actual)) {
+								isNameMatchFound = true;
+								break;
+							}
 						}
 					}
 					if (isNameMatchFound) {
@@ -555,6 +571,9 @@ public class NotificationService {
 		if (trimmed.isEmpty()) {
 			return trimmed;
 		}
-		return Normalizer.normalize(trimmed, Normalizer.Form.NFC);
+		String normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFD);
+		// Remove diacritics/combining marks to avoid false mismatches (e.g., Arabic harakat).
+		normalized = normalized.replaceAll("\\p{M}+", "");
+		return Normalizer.normalize(normalized, Normalizer.Form.NFC);
 	}
 }
