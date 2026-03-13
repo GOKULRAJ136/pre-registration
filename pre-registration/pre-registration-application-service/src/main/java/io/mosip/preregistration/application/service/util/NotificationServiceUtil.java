@@ -12,16 +12,9 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.json.JSONException;
@@ -43,6 +36,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.mosip.kernel.core.logger.spi.Logger;
 import io.mosip.kernel.core.templatemanager.spi.TemplateManager;
@@ -135,11 +129,20 @@ public class NotificationServiceUtil {
 		NotificationDTO notificationDto = null;
 		List<KeyValuePairDto<String, String>> langaueNamePairs = new ArrayList<KeyValuePairDto<String, String>>();
 		if (isLatest) {
-			HashMap<String, String> result = objectMapper.readValue(notificationDtoData.toString(), HashMap.class);
+			JsonNode node = objectMapper.readTree(notificationDtoData.toString());
 			KeyValuePairDto langaueNamePair = null;
-			for (Map.Entry<String, String> set : result.entrySet()) {
+			for (Iterator<Map.Entry<String, JsonNode>> it = node.fields(); it.hasNext();) {
+				Map.Entry<String, JsonNode> set = it.next();
+				JsonNode valueNode = set.getValue();
+				if (valueNode instanceof ObjectNode objNode) {
+					// Ignore invalid fullName payloads (string) from client; we rebuild fullName below.
+					JsonNode fullNameNode = objNode.get("fullName");
+					if (fullNameNode != null && !fullNameNode.isArray()) {
+						objNode.remove("fullName");
+					}
+				}
 				langaueNamePair = new KeyValuePairDto();
-				notificationDto = objectMapper.convertValue(set.getValue(), NotificationDTO.class);
+				notificationDto = objectMapper.treeToValue(valueNode, NotificationDTO.class);
 				langaueNamePair.setKey(set.getKey());
 				langaueNamePair.setValue(notificationDto.getName());
 				langaueNamePairs.add(langaueNamePair);
