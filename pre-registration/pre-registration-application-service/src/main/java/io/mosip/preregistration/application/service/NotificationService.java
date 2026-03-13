@@ -483,7 +483,16 @@ public class NotificationService {
 						}
 					}
 				}
-				String requestName = normalizeValue(notificationDto.getName());
+				Map<String, String> requestedNames = new HashMap<>();
+				if (notificationDto.getFullName() != null) {
+					for (KeyValuePairDto<String, String> pair : notificationDto.getFullName()) {
+						if (pair.getKey() != null && pair.getValue() != null) {
+							requestedNames.put(pair.getKey().trim(), normalizeValue(pair.getValue()));
+						}
+					}
+				} else if (notificationDto.getName() != null) {
+					requestedNames.put("", normalizeValue(notificationDto.getName()));
+				}
 				for (int i = 0; i < nameKeys.length; i++) {
 					JsonNode arrayNode = responseNode.get(nameKeys[i]);
 					if (arrayNode == null || !arrayNode.isArray()) {
@@ -491,12 +500,16 @@ public class NotificationService {
 						continue;
 					}
 					for (JsonNode jsonNode : arrayNode) {
-						String lang = jsonNode.has("language") ? jsonNode.get("language").asText().trim() : null;
-						if (!requestedLangs.isEmpty() && (lang == null || !requestedLangs.contains(lang))) {
+						String lang = jsonNode.has("language") ? jsonNode.get("language").asText().trim() : "";
+						if (!requestedLangs.isEmpty() && !requestedLangs.contains(lang)) {
 							continue;
 						}
-						String value = jsonNode.has("value") ? normalizeValue(jsonNode.get("value").asText()) : null;
-						if (value != null && requestName != null && requestName.equals(value)) {
+						String expected = requestedNames.get(lang);
+						if (expected == null && requestedNames.size() == 1 && requestedNames.containsKey("")) {
+							expected = requestedNames.get("");
+						}
+						String actual = jsonNode.has("value") ? normalizeValue(jsonNode.get("value").asText()) : null;
+						if (expected != null && actual != null && expected.equals(actual)) {
 							isNameMatchFound = true;
 							break;
 						}
