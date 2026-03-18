@@ -376,14 +376,12 @@ public class NotificationService {
 			objectMapper = JsonMapper.builder().addModule(new AfterburnerModule()).build();
 			objectMapper.registerModule(new JavaTimeModule());
 
-			JsonNode responseNode = objectMapper.readTree(responseEntity.getResponse().getDemographicDetails().toJSONString());
-
-			responseNode = responseNode.get(identity);
+			JsonNode responseNode = getIdentityNode(objectMapper, responseEntity);
 
 			JsonNode arrayNode = responseNode.get(fullName);
 			List<KeyValuePairDto<String, String>> langaueNamePairs = new ArrayList<KeyValuePairDto<String, String>>();
 			KeyValuePairDto langaueNamePair = null;
-			if (arrayNode.isArray()) {
+			if (arrayNode != null && arrayNode.isArray()) {
 				for (JsonNode jsonNode : arrayNode) {
 					langaueNamePair = new KeyValuePairDto();
 					langaueNamePair.setKey(jsonNode.get("language").asText().trim());
@@ -440,14 +438,11 @@ public class NotificationService {
 				objectMapper = JsonMapper.builder().addModule(new AfterburnerModule()).build();
 				objectMapper.registerModule(new JavaTimeModule());
 
-				JsonNode responseNode = objectMapper
-						.readTree(responseEntity.getResponse().getDemographicDetails().toJSONString());
-
-				responseNode = responseNode.get(identity);
+				JsonNode responseNode = getIdentityNode(objectMapper, responseEntity);
 
 				JsonNode arrayNode = responseNode.get(fullName);
 				KeyValuePairDto langaueNamePair = null;
-				if (arrayNode.isArray()) {
+				if (arrayNode != null && arrayNode.isArray()) {
 					for (JsonNode jsonNode : arrayNode) {
 						langaueNamePair = new KeyValuePairDto();
 						langaueNamePair.setKey(jsonNode.get("language").asText().trim());
@@ -652,9 +647,7 @@ public class NotificationService {
 		if (responseEntity.getErrors() != null) {
 			throw new DemographicDetailsNotFoundException(responseEntity.getErrors(), response);
 		}
-		JsonNode responseNode = objectMapper
-				.readTree(responseEntity.getResponse().getDemographicDetails().toJSONString());
-		responseNode = responseNode.get(identity);
+		JsonNode responseNode = getIdentityNode(objectMapper, responseEntity);
 		if (!notificationDto.isAdditionalRecipient()) {
 			if (notificationDto.getMobNum() != null || notificationDto.getEmailID() != null) {
 				log.error(LOGGER_SESSIONID, LOGGER_IDTYPE, LOGGER_ID,
@@ -667,6 +660,9 @@ public class NotificationService {
 				String[] nameKeys = nameFormat.split(",");
 				for (int i = 0; i < nameKeys.length; i++) {
 					JsonNode arrayNode = responseNode.get(nameKeys[i]);
+					if (arrayNode == null || !arrayNode.isArray()) {
+						continue;
+					}
 					for (JsonNode jsonNode : arrayNode) {
 						if (notificationDto.getName().trim().equals(jsonNode.get("value").asText().trim())) {
 							isNameMatchFound = true;
@@ -702,5 +698,20 @@ public class NotificationService {
 		}
 		bookingRegistrationDTO = respEntity.getResponse();
 		return bookingRegistrationDTO;
+	}
+
+	private JsonNode getIdentityNode(ObjectMapper objectMapper,
+			MainResponseDTO<DemographicResponseDTO> responseEntity) throws IOException {
+		JsonNode responseNode = objectMapper
+				.readTree(responseEntity.getResponse().getDemographicDetails().toJSONString());
+		if (responseNode == null || responseNode.isNull()) {
+			throw new MandatoryFieldException(NotificationErrorCodes.PRG_PAM_ACK_002.getCode(),
+					NotificationErrorMessages.INCORRECT_MANDATORY_FIELDS.getMessage(), response);
+		}
+		JsonNode identityNode = responseNode.get(identity);
+		if (identityNode != null && !identityNode.isNull()) {
+			return identityNode;
+		}
+		return responseNode;
 	}
 }
